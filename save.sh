@@ -4,7 +4,7 @@ USERNAME=admin
 PASSWORD=123456789a
 NOW=$(date +"%Y%m%d-%H%M%S")
 
-export GST_DEBUG=4
+# export GST_DEBUG=4
 
 gst-launch-1.0 -e \
     rtspsrc location=rtsp://$USERNAME:$PASSWORD@$HOST:$PORT name=src \
@@ -12,13 +12,11 @@ gst-launch-1.0 -e \
         rtph265depay ! \
         h265parse name=vsrc \
     src. ! \
-        rtppcmadepay  name=asrc \
+        rtppcmadepay ! \
+        alawdec name=asrc \
     vsrc. ! \
         matroskamux name=mux \
     asrc. ! \
-        alawdec \
-        audioconvert ! \
-        audio/x-raw,rate=8000,channels=1,format=F32LE,layout=interleaved ! \
         mux. \
     mux. ! \
         filesink location=record-$NOW.mkv
