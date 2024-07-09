@@ -25,6 +25,25 @@ def create_capture_command(conn_info: ConnInfo, filename: str) -> str:
     mux. ! filesink location={filename}"
 
 
+def create_capture_and_display(conn_info: ConnInfo, filename: str) -> str:
+    rtsp_url = f"rtsp://{conn_info.username}:{conn_info.password}@{conn_info.host}:{conn_info.port}"
+
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = filename
+
+    command = [
+        "gst-launch-1.0", "-e", f"rtspsrc location={rtsp_url} name=src", "src.",
+        "!", "rtph265depay", "!", "h265parse", "!", "tee name=vsrc", "!",
+        "queue", "!", "matroskamux name=mux", "src.", "!", "rtppcmadepay", "!",
+        "alawdec", "!", "tee name=asrc", "!", "queue", "!", "mux.", "mux.", "!",
+        f"filesink location={output_file}", "vsrc.", "!", "queue", "!",
+        "avdec_h265", "!", "videoconvert", "!", "autovideosink", "asrc.", "!",
+        "queue", "!", "audioconvert", "!", "autoaudiosink"
+    ]
+
+    return command.join(" ")
+
+
 def main():
     ps: list[Popen] = []
     g_flag = True
@@ -54,7 +73,9 @@ def main():
         return filename
 
     def conn_to_command(conn_info: ConnInfo) -> str:
-        return create_capture_command(conn_info, conn_to_filename(conn_info))
+        # return create_capture_command(conn_info, conn_to_filename(conn_info))
+        return create_capture_and_display(conn_info,
+                                          conn_to_filename(conn_info))
 
     def run_command(command: str):
         logger.info(f"Running command: {command}")
