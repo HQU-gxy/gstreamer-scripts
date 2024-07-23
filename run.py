@@ -15,6 +15,11 @@ class ConnInfo(BaseModel):
     username: str
     password: str
 
+def h265_dec()->str:
+    if os.name == 'nt':
+        return "d3d11h265dec"
+    else:
+        return "avdec_h265"
 
 def create_capture_command(conn_info: ConnInfo, filename: str) -> str:
     return f"gst-launch-1.0 -e rtspsrc location=rtsp://{conn_info.username}:{conn_info.password}@{conn_info.host}:{conn_info.port} name=src \
@@ -26,15 +31,30 @@ def create_capture_command(conn_info: ConnInfo, filename: str) -> str:
 
 
 def create_display_command(conn_info: ConnInfo) -> str:
-    rtsp_url = f"rtsp://{conn_info.username}:{conn_info.password}@{conn_info.host}:{conn_info.port}"
-
-    command = [
-        "gst-launch-1.0", "-e", f"rtspsrc location={rtsp_url} name=src", "src.",
-        "!", "rtph265depay", "!", "avdec_h265", "!", "autovideosink", "src.",
-        "!", "rtppcmadepay", "!", "alawdec", "!", "audioconvert", "!",
-        "autoaudiosink"
-    ]
-    return " ".join(command)
+    H265DEC = h265_dec()
+    cmd = f"""
+        gst-launch-1.0 -e 
+            rtspsrc location=rtsp://{conn_info.username}:{conn_info.password}@{conn_info.host}:{conn_info.port} name=src 
+            src. ! 
+                rtph265depay ! 
+                h265parse ! tee name=vsrc ! queue ! matroskamux name=mux 
+            src. ! 
+                rtppcmadepay ! 
+                alawdec ! tee name=asrc ! queue ! mux. 
+            mux. ! 
+                filesink location=record-$NOW.mkv 
+            vsrc. ! 
+                queue ! 
+                {H265DEC} ! 
+                videoconvert ! 
+                autovideosink 
+            asrc. ! 
+                queue ! 
+                audioconvert ! 
+                autoaudiosink
+    """
+    cmd = cmd.replace("\n", " ")
+    return cmd
 
 
 def main():
